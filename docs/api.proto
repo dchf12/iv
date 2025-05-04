@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package imageviewer;
+
+// フォルダ選択リクエスト（引数なし）
+message SelectDirectoryRequest {}
+
+// フォルダ選択レスポンス
+message SelectDirectoryResponse {
+  string directory_path = 1;
+}
+
+// 画像一覧取得リクエスト
+message GetImageFilesRequest {
+  string directory_path = 1;
+}
+
+// 画像一覧取得レスポンス
+message GetImageFilesResponse {
+  repeated string file_paths = 1;
+}
+
+// エラー情報
+message ErrorResponse {
+  string message = 1;
+}
+
+// サービス定義（アプリケーションAPI）
+service ImageViewerService {
+  // ディレクトリ選択ダイアログの表示
+  rpc SelectDirectory (SelectDirectoryRequest) returns (SelectDirectoryResponse);
+
+  // 指定ディレクトリ内の画像ファイル一覧取得
+  rpc GetImageFiles (GetImageFilesRequest) returns (GetImageFilesResponse);
+}
