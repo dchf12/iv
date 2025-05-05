@@ -2,3 +2,6 @@
 .DS_Store
 image-viewer
 assets/
+node_modules/
+build/
+dist/
