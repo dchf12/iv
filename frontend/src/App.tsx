@@ -61,12 +61,16 @@ function reducer(state: AppState, action: Action): AppState {
     case "NEXT_IMAGE":
       return {
         ...state,
-        currentImageIndex: Math.min(state.currentImageIndex + 1, state.imageFiles.length - 1),
+        currentImageIndex: state.imageFiles.length === 0
+          ? 0
+          : (state.currentImageIndex + 1) % state.imageFiles.length,
       };
     case "PREV_IMAGE":
       return {
         ...state,
-        currentImageIndex: Math.max(state.currentImageIndex - 1, 0),
+        currentImageIndex: state.imageFiles.length === 0
+          ? 0
+          : (state.currentImageIndex - 1 + state.imageFiles.length) % state.imageFiles.length,
       };
     case "CLEAR_ERROR":
       return { ...state, status: "idle", errorMessage: undefined };
@@ -122,25 +126,25 @@ function App() {
 
   // 前の画像に移動
   const handlePrevImage = useCallback(() => {
-    if (state.status === "viewing" && state.currentImageIndex > 0) {
+    if (state.status === "viewing") {
       dispatch({ type: "PREV_IMAGE" });
     }
-  }, [state.status, state.currentImageIndex]);
+  }, [state.status]);
 
   // 次の画像に移動
   const handleNextImage = useCallback(() => {
-    if (state.status === "viewing" && state.currentImageIndex < state.imageFiles.length - 1) {
+    if (state.status === "viewing") {
       dispatch({ type: "NEXT_IMAGE" });
     }
-  }, [state.status, state.currentImageIndex, state.imageFiles.length]);
+  }, [state.status]);
 
   // キーボードイベントの処理
   const handleKeyPress = useCallback((event: KeyboardEvent) => {
     if (state.status !== "viewing") return;
 
-    if (event.key === "ArrowLeft") {
+    if (event.key === "ArrowLeft" || event.key === "h") {
       handlePrevImage();
-    } else if (event.key === "ArrowRight") {
+    } else if (event.key === "ArrowRight" || event.key === "l") {
       handleNextImage();
     }
   }, [state.status, handlePrevImage, handleNextImage]);
@@ -196,7 +200,6 @@ function App() {
             <div className="navigation-controls">
               <button 
                 onClick={handlePrevImage}
-                disabled={state.currentImageIndex === 0}
                 className="nav-button"
                 type="button"
               >
@@ -207,7 +210,6 @@ function App() {
               </span>
               <button 
                 onClick={handleNextImage}
-                disabled={state.currentImageIndex === state.imageFiles.length - 1}
                 className="nav-button"
                 type="button"
               >
