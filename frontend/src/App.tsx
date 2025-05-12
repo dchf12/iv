@@ -36,7 +36,13 @@ function reducer(state: AppState, action: Action): AppState {
     case "SELECT_DIRECTORY":
       return { ...state, status: "selecting" };
     case "CANCEL_SELECTION":
-      return { ...state, status: "idle" };
+      return {
+        ...state,
+        status: "idle",
+        directoryPath: "",
+        imageFiles: [],
+        currentImageIndex: 0,
+      };
     case "DIRECTORY_SELECTED":
       return {
         ...state,
@@ -142,12 +148,15 @@ function App() {
   const handleKeyPress = useCallback((event: KeyboardEvent) => {
     if (state.status !== "viewing") return;
 
-    if (event.key === "ArrowLeft" || event.key === "h") {
+    if (event.key === "ArrowLeft" || event.key === "h" || event.key === "k") {
       event.preventDefault();
       handlePrevImage();
-    } else if (event.key === "ArrowRight" || event.key === "l") {
+    } else if (event.key === "ArrowRight" || event.key === "l" || event.key === "j") {
       event.preventDefault();
       handleNextImage();
+    } else if (event.key === "q" || event.key === "Escape") {
+      event.preventDefault();
+      dispatch({ type: "CANCEL_SELECTION" });
     }
   }, [state.status, handlePrevImage, handleNextImage]);
 
