@@ -1,5 +1,6 @@
 import { useEffect, useReducer, useCallback } from 'react';
 import './App.css';
+import { GetImageFiles, SelectDirectory } from '../wailsjs/go/viewer/ImageViewerService';
 
 // 状態の型定義
 type AppState = {
@@ -81,11 +82,11 @@ function App() {
   const handleSelectDirectory = async () => {
     try {
       dispatch({ type: "SELECT_DIRECTORY" });
-      const directoryPath = await window.go.main.ImageViewerService.SelectDirectory();
-      
+      const directoryPath = await SelectDirectory();
+
       if (directoryPath) {
         dispatch({ type: "DIRECTORY_SELECTED", payload: directoryPath });
-        const imageFiles = await window.go.main.ImageViewerService.GetImageFiles(directoryPath);
+        const imageFiles = await GetImageFiles(directoryPath);
         dispatch({ type: "IMAGES_LOADED", payload: imageFiles });
       } else {
         dispatch({ type: "CANCEL_SELECTION" });
@@ -99,18 +100,18 @@ function App() {
   };
 
   // 前の画像に移動
-  const handlePrevImage = () => {
+  const handlePrevImage = useCallback(() => {
     if (state.status === "viewing" && state.currentImageIndex > 0) {
       dispatch({ type: "PREV_IMAGE" });
     }
-  };
+  }, [state.status, state.currentImageIndex]);
 
   // 次の画像に移動
-  const handleNextImage = () => {
+  const handleNextImage = useCallback(() => {
     if (state.status === "viewing" && state.currentImageIndex < state.imageFiles.length - 1) {
       dispatch({ type: "NEXT_IMAGE" });
     }
-  };
+  }, [state.status, state.currentImageIndex, state.imageFiles.length]);
 
   // キーボードイベントの処理
   const handleKeyPress = useCallback((event: KeyboardEvent) => {
@@ -121,7 +122,7 @@ function App() {
     } else if (event.key === "ArrowRight") {
       handleNextImage();
     }
-  }, [state.status, state.currentImageIndex, state.imageFiles.length]);
+  }, [state.status, handlePrevImage, handleNextImage]);
 
   // キーボードイベントの監視を設定
   useEffect(() => {
@@ -140,7 +141,7 @@ function App() {
     <div className="app-container">
       <header className="app-header">
         <h1>画像閲覧アプリ</h1>
-        <button onClick={handleSelectDirectory} className="select-button">
+        <button onClick={handleSelectDirectory} className="select-button" type="button">
           フォルダ選択
         </button>
       </header>
@@ -161,7 +162,7 @@ function App() {
         {state.status === "error" && (
           <div className="error-state">
             <p>{state.errorMessage}</p>
-            <button onClick={() => dispatch({ type: "CLEAR_ERROR" })}>
+            <button onClick={() => dispatch({ type: "CLEAR_ERROR" })} type="button">
               閉じる
             </button>
           </div>
@@ -181,6 +182,7 @@ function App() {
                 onClick={handlePrevImage}
                 disabled={state.currentImageIndex === 0}
                 className="nav-button"
+                type="button"
               >
                 ← 前へ
               </button>
@@ -191,6 +193,7 @@ function App() {
                 onClick={handleNextImage}
                 disabled={state.currentImageIndex === state.imageFiles.length - 1}
                 className="nav-button"
+                type="button"
               >
                 次へ →
               </button>
