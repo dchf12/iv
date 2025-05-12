@@ -143,8 +143,10 @@ function App() {
     if (state.status !== "viewing") return;
 
     if (event.key === "ArrowLeft" || event.key === "h") {
+      event.preventDefault();
       handlePrevImage();
     } else if (event.key === "ArrowRight" || event.key === "l") {
+      event.preventDefault();
       handleNextImage();
     }
   }, [state.status, handlePrevImage, handleNextImage]);
