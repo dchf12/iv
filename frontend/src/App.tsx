@@ -1,6 +1,6 @@
-import { useEffect, useReducer, useCallback } from 'react';
+import { useEffect, useReducer, useCallback, useState } from 'react';
 import './App.css';
-import { GetImageFiles, SelectDirectory } from '../wailsjs/go/viewer/ImageViewerService';
+import { GetImageFiles, SelectDirectory, GetImageBase64 } from '../wailsjs/go/viewer/ImageViewerService';
 
 // 状態の型定義
 type AppState = {
@@ -77,6 +77,7 @@ function reducer(state: AppState, action: Action): AppState {
 
 function App() {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const [imageSrc, setImageSrc] = useState<string>("");
 
   // フォルダ選択処理
   const handleSelectDirectory = async () => {
@@ -98,6 +99,26 @@ function App() {
       });
     }
   };
+
+  // 現在の画像のBase64データを取得
+  const loadCurrentImage = useCallback(async () => {
+    if (state.status === "viewing" && state.imageFiles.length > 0) {
+      const imagePath = state.imageFiles[state.currentImageIndex];
+      try {
+        const base64 = await GetImageBase64(imagePath);
+        setImageSrc(base64);
+      } catch (e) {
+        setImageSrc("");
+      }
+    } else {
+      setImageSrc("");
+    }
+  }, [state.status, state.imageFiles, state.currentImageIndex]);
+
+  // 画像切り替え時にBase64データを取得
+  useEffect(() => {
+    loadCurrentImage();
+  }, [loadCurrentImage]);
 
   // 前の画像に移動
   const handlePrevImage = useCallback(() => {
@@ -131,11 +152,6 @@ function App() {
       window.removeEventListener("keydown", handleKeyPress);
     };
   }, [handleKeyPress]);
-
-  // 現在の画像のURLを取得
-  const currentImageUrl = state.status === "viewing" && state.imageFiles.length > 0
-    ? `file://${state.imageFiles[state.currentImageIndex]}`
-    : "";
 
   return (
     <div className="app-container">
@@ -172,7 +188,7 @@ function App() {
           <>
             <div className="image-container">
               <img 
-                src={currentImageUrl} 
+                src={imageSrc} 
                 alt="選択された画像" 
                 className="displayed-image"
               />

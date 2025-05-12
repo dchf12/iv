@@ -2,6 +2,7 @@ package viewer
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"os"
@@ -44,15 +45,15 @@ func (s *ImageViewerService) SelectDirectory() (string, error) {
 	directory, err := runtime.OpenDirectoryDialog(s.ctx, runtime.OpenDialogOptions{
 		Title: "画像フォルダを選択",
 	})
-	
+
 	if err != nil {
 		return "", fmt.Errorf("ディレクトリ選択エラー: %w", err)
 	}
-	
+
 	if directory == "" {
 		return "", errors.New("ディレクトリが選択されていません")
 	}
-	
+
 	return directory, nil
 }
 
@@ -67,7 +68,7 @@ func (s *ImageViewerService) GetImageFiles(directoryPath string) ([]string, erro
 	if err != nil {
 		return nil, fmt.Errorf("ディレクトリアクセスエラー: %w", err)
 	}
-	
+
 	if !fileInfo.IsDir() {
 		return nil, errors.New("指定されたパスはディレクトリではありません")
 	}
@@ -86,9 +87,10 @@ func (s *ImageViewerService) GetImageFiles(directoryPath string) ([]string, erro
 			continue // サブディレクトリはスキップ
 		}
 
-		extension := strings.ToLower(filepath.Ext(entry.Name()))
-		if supportedExtensions[extension] {
-			imagePaths = append(imagePaths, filepath.Join(directoryPath, entry.Name()))
+		name := entry.Name()
+		extension := strings.ToLower(filepath.Ext(name))
+		if supportedExtensions[extension] && !strings.HasPrefix(name, ".") && len(name) > len(extension) {
+			imagePaths = append(imagePaths, filepath.Join(directoryPath, name))
 		}
 	}
 
@@ -97,4 +99,21 @@ func (s *ImageViewerService) GetImageFiles(directoryPath string) ([]string, erro
 	}
 
 	return imagePaths, nil
+}
+
+// GetImageBase64 指定パスの画像をBase64エンコードして返す
+func (s *ImageViewerService) GetImageBase64(imagePath string) (string, error) {
+	data, err := os.ReadFile(imagePath)
+	if err != nil {
+		return "", err
+	}
+	ext := strings.ToLower(filepath.Ext(imagePath))
+	mime := "image/png"
+	if ext == ".jpg" || ext == ".jpeg" {
+		mime = "image/jpeg"
+	} else if ext == ".gif" {
+		mime = "image/gif"
+	}
+	base64Str := base64.StdEncoding.EncodeToString(data)
+	return "data:" + mime + ";base64," + base64Str, nil
 }
