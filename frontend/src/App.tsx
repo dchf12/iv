@@ -103,9 +103,9 @@ function App() {
         dispatch({ type: "CANCEL_SELECTION" });
       }
     } catch (error) {
-      dispatch({ 
-        type: "IMAGE_LOAD_FAILED", 
-        payload: `エラーが発生しました: ${error instanceof Error ? error.message : String(error)}` 
+      dispatch({
+        type: "IMAGE_LOAD_FAILED",
+        payload: `エラーが発生しました: ${error instanceof Error ? error.message : String(error)}`
       });
     }
   };
@@ -146,7 +146,7 @@ function App() {
 
   // キーボードイベントの処理
   const handleKeyPress = useCallback((event: KeyboardEvent) => {
-    if (state.status !== "viewing") return;
+    if (state.status !== "viewing" && event.key !== "o") return;
 
     if (event.key === "ArrowLeft" || event.key === "h" || event.key === "k") {
       event.preventDefault();
@@ -157,6 +157,9 @@ function App() {
     } else if (event.key === "q" || event.key === "Escape") {
       event.preventDefault();
       dispatch({ type: "CANCEL_SELECTION" });
+    } else if (event.key === "o") {
+      event.preventDefault();
+      handleSelectDirectory();
     }
   }, [state.status, handlePrevImage, handleNextImage]);
 
@@ -202,14 +205,14 @@ function App() {
         {state.status === "viewing" && (
           <>
             <div className="image-container">
-              <img 
-                src={imageSrc} 
-                alt="選択された画像" 
+              <img
+                src={imageSrc}
+                alt="選択された画像"
                 className="displayed-image"
               />
             </div>
             <div className="navigation-controls">
-              <button 
+              <button
                 onClick={handlePrevImage}
                 className="nav-button"
                 type="button"
@@ -219,7 +222,7 @@ function App() {
               <span className="image-counter">
                 {state.currentImageIndex + 1} / {state.imageFiles.length}
               </span>
-              <button 
+              <button
                 onClick={handleNextImage}
                 className="nav-button"
                 type="button"
