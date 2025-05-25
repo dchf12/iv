@@ -173,8 +173,8 @@ function App() {
 
   return (
     <div className="app-container">
-      <header className="app-header">
-        <h1>画像閲覧アプリ</h1>
+      <header className="app-header" style={{ padding: '0.5rem 1rem', minHeight: 'unset', height: '48px', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+        <h1 style={{ fontSize: '1.2rem', margin: 0 }}>画像閲覧アプリ</h1>
         <button onClick={handleSelectDirectory} className="select-button" type="button">
           フォルダ選択
         </button>
@@ -211,7 +211,7 @@ function App() {
                 className="displayed-image"
               />
             </div>
-            <div className="navigation-controls">
+            <div className="navigation-controls" style={{ height: '28px', display: 'flex', gap: '1rem', marginTop: '1rem' }}>
               <button
                 onClick={handlePrevImage}
                 className="nav-button"
