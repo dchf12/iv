@@ -18,6 +18,7 @@ type Action =
   | { type: "DIRECTORY_SELECTED"; payload: string }
   | { type: "IMAGES_LOADED"; payload: string[] }
   | { type: "IMAGE_LOAD_FAILED"; payload: string }
+  | { type: "JUMP"; payload: number }
   | { type: "NEXT_IMAGE" }
   | { type: "PREV_IMAGE" }
   | { type: "CLEAR_ERROR" };
@@ -78,6 +79,13 @@ function reducer(state: AppState, action: Action): AppState {
           ? 0
           : (state.currentImageIndex - 1 + state.imageFiles.length) % state.imageFiles.length,
       };
+    case "JUMP": {
+      if (state.imageFiles.length === 0) return state;
+      const L = state.imageFiles.length;
+      const n = action.payload % L; // allow large numbers
+      const newIndex = ((state.currentImageIndex + n) % L + L) % L;
+      return { ...state, currentImageIndex: newIndex };
+    }
     case "CLEAR_ERROR":
       return { ...state, status: "idle", errorMessage: undefined };
     default:
@@ -88,6 +96,9 @@ function reducer(state: AppState, action: Action): AppState {
 function App() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [imageSrc, setImageSrc] = useState<string>("");
+  // 数字入力バッファ（ページジャンプ用）
+  const digitBufferRef = ({} as { current?: string });
+  const digitTimerRef = ({} as { current?: number | null });
   // 表示用ファイル名を短縮して返すユーティリティ
   const getBasename = (path: string) => {
     if (!path) return "";
@@ -159,7 +170,42 @@ function App() {
 
   // キーボードイベントの処理
   const handleKeyPress = useCallback((event: KeyboardEvent) => {
+    // 数字入力の開始・継続
+    const isDigit = /^[0-9]$/.test(event.key);
+    if (isDigit) {
+      event.preventDefault();
+      // 数字は viewing 状態でなくても受け付ける（選択前の入力を許可）
+      digitBufferRef.current = (digitBufferRef.current || '') + event.key;
+      // タイマーをリセット
+      if (digitTimerRef.current) {
+        window.clearTimeout(digitTimerRef.current as number);
+      }
+      digitTimerRef.current = window.setTimeout(() => {
+        digitBufferRef.current = '';
+        digitTimerRef.current = null;
+      }, 3000);
+      return;
+    }
+
     if (state.status !== "viewing" && event.key !== "o") return;
+
+    // 移動系キーと組み合わせた場合、数字バッファを使ってジャンプ
+    const buffer = digitBufferRef.current ? parseInt(digitBufferRef.current || '0', 10) : 0;
+    if ((event.key === "ArrowLeft" || event.key === "h" || event.key === "k") && buffer > 0) {
+      event.preventDefault();
+      // 左へは負にして扱う
+      dispatch({ type: 'JUMP', payload: -buffer });
+      digitBufferRef.current = '';
+      if (digitTimerRef.current) { window.clearTimeout(digitTimerRef.current as number); digitTimerRef.current = null; }
+      return;
+    }
+    if ((event.key === "ArrowRight" || event.key === "l" || event.key === "j") && buffer > 0) {
+      event.preventDefault();
+      dispatch({ type: 'JUMP', payload: buffer });
+      digitBufferRef.current = '';
+      if (digitTimerRef.current) { window.clearTimeout(digitTimerRef.current as number); digitTimerRef.current = null; }
+      return;
+    }
 
     if (event.key === "ArrowLeft" || event.key === "h" || event.key === "k") {
       event.preventDefault();
@@ -175,6 +221,15 @@ function App() {
       handleSelectDirectory();
     }
   }, [state.status, handlePrevImage, handleNextImage]);
+
+  // コンポーネントアンマウント時にタイマーをクリア
+  useEffect(() => {
+    return () => {
+      if (digitTimerRef.current) {
+        window.clearTimeout(digitTimerRef.current as number);
+      }
+    };
+  }, []);
 
   // キーボードイベントの監視を設定
   useEffect(() => {
