@@ -88,6 +88,19 @@ function reducer(state: AppState, action: Action): AppState {
 function App() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [imageSrc, setImageSrc] = useState<string>("");
+  // 表示用ファイル名を短縮して返すユーティリティ
+  const getBasename = (path: string) => {
+    if (!path) return "";
+    const parts = path.split(/[/\\]/);
+    return parts[parts.length - 1];
+  };
+
+  const truncate = (s: string, max = 30) => {
+    if (!s) return "";
+    if (s.length <= max) return s;
+    const half = Math.floor((max - 3) / 2);
+    return s.slice(0, half) + '...' + s.slice(s.length - half);
+  };
 
   // フォルダ選択処理
   const handleSelectDirectory = async () => {
@@ -175,6 +188,14 @@ function App() {
     <div className="app-container">
       <header className="app-header" style={{ padding: '0.5rem 1rem', minHeight: 'unset', height: '48px', display: 'flex', alignItems: 'center', gap: '1rem' }}>
         <h1 style={{ fontSize: '1.2rem', margin: 0 }}>画像閲覧アプリ</h1>
+        {/* 現在表示中のファイル名を中央に表示（長ければ省略） */}
+        <div style={{ flex: '0 0 auto', textAlign: 'center', maxWidth: '50%', overflow: 'hidden' }}>
+          <span style={{ fontSize: '0.95rem', color: '#444' }}>
+            {state.status === 'viewing' && state.imageFiles.length > 0
+              ? truncate(getBasename(state.imageFiles[state.currentImageIndex]), 40)
+              : ''}
+          </span>
+        </div>
         <button onClick={handleSelectDirectory} className="select-button" type="button">
           フォルダ選択
         </button>
