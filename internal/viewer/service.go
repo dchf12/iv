@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -147,4 +148,46 @@ func (s *ImageViewerService) GetFileBytes(imagePath string) ([]byte, error) {
 		return nil, err
 	}
 	return data, nil
+}
+
+// GetFileSize は指定ファイルのサイズを返します
+func (s *ImageViewerService) GetFileSize(imagePath string) (int64, error) {
+	fi, err := os.Stat(imagePath)
+	if err != nil {
+		return 0, err
+	}
+	return fi.Size(), nil
+}
+
+// GetFileBytesRange は指定オフセットから最大 length バイトを読み取って返します
+func (s *ImageViewerService) GetFileBytesRange(imagePath string, offset int64, length int) ([]byte, error) {
+	f, err := os.Open(imagePath)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	fi, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+
+	if offset < 0 || offset >= fi.Size() {
+		return nil, fmt.Errorf("invalid offset")
+	}
+	if length <= 0 {
+		return nil, fmt.Errorf("invalid length")
+	}
+
+	remaining := fi.Size() - offset
+	if int64(length) > remaining {
+		length = int(remaining)
+	}
+
+	buf := make([]byte, length)
+	n, err := f.ReadAt(buf, offset)
+	if err != nil && err != io.EOF {
+		return nil, err
+	}
+	return buf[:n], nil
 }

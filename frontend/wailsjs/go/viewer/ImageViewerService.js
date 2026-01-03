@@ -6,6 +6,14 @@ export function GetFileBytes(arg1) {
   return window['go']['viewer']['ImageViewerService']['GetFileBytes'](arg1);
 }
 
+export function GetFileBytesRange(arg1, arg2, arg3) {
+  return window['go']['viewer']['ImageViewerService']['GetFileBytesRange'](arg1, arg2, arg3);
+}
+
+export function GetFileSize(arg1) {
+  return window['go']['viewer']['ImageViewerService']['GetFileSize'](arg1);
+}
+
 export function GetImageBase64(arg1) {
   return window['go']['viewer']['ImageViewerService']['GetImageBase64'](arg1);
 }

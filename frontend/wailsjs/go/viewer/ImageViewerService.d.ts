@@ -3,6 +3,10 @@
 
 export function GetFileBytes(arg1:string):Promise<Array<number>>;
 
+export function GetFileBytesRange(arg1:string,arg2:number,arg3:number):Promise<Array<number>>;
+
+export function GetFileSize(arg1:string):Promise<number>;
+
 export function GetImageBase64(arg1:string):Promise<string>;
 
 export function GetImageFiles(arg1:string):Promise<Array<string>>;

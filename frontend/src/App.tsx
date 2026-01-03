@@ -156,23 +156,34 @@ function App() {
       try {
         const src = await GetImageBase64(imagePath);
 
-        // サーバーが file:// を返す場合はファイルをバイナリで取得して Blob 化する
+        // サーバーが file:// を返す場合は、チャンクで読み込みつつ Blob を組み立てる
         if (typeof src === 'string' && src.startsWith('file://')) {
-          // Wails のブリッジ経由でバイト列を取得（戻り値は Uint8Array か base64 文字列のどちらかを想定）
-          const raw: any = await (window as any).go.viewer.ImageViewerService.GetFileBytes(imagePath);
+          // ファイルサイズを問い合わせ
+          const sizeRaw: any = await (window as any).go.viewer.ImageViewerService.GetFileSize(imagePath);
+          const totalSize = typeof sizeRaw === 'number' ? sizeRaw : parseInt(String(sizeRaw), 10);
+          const chunkSize = 1024 * 1024; // 1MB
 
-          let bytes: Uint8Array;
-          if (typeof raw === 'string') {
-            // base64 文字列だった場合に備えてデコード
-            const bin = atob(raw);
-            bytes = new Uint8Array(bin.length);
-            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-          } else if (raw instanceof Uint8Array) {
-            bytes = raw as Uint8Array;
-          } else if (raw && raw.length) {
-            bytes = new Uint8Array(raw);
-          } else {
-            throw new Error('不明なバイナリ形式');
+          const total = new Uint8Array(totalSize);
+          let offset = 0;
+          while (offset < totalSize) {
+            const len = Math.min(chunkSize, totalSize - offset);
+            const chunkRaw: any = await (window as any).go.viewer.ImageViewerService.GetFileBytesRange(imagePath, offset, len);
+
+            let chunkBytes: Uint8Array;
+            if (typeof chunkRaw === 'string') {
+              const bin = atob(chunkRaw);
+              chunkBytes = new Uint8Array(bin.length);
+              for (let i = 0; i < bin.length; i++) chunkBytes[i] = bin.charCodeAt(i);
+            } else if (chunkRaw instanceof Uint8Array) {
+              chunkBytes = chunkRaw as Uint8Array;
+            } else if (chunkRaw && chunkRaw.length) {
+              chunkBytes = new Uint8Array(chunkRaw);
+            } else {
+              throw new Error('不明なバイナリ形式');
+            }
+
+            total.set(chunkBytes, offset);
+            offset += chunkBytes.length;
           }
 
           // MIME 判定
@@ -187,7 +198,7 @@ function App() {
             }
           })();
 
-          const blob = new Blob([bytes.buffer as ArrayBuffer], { type: mime });
+          const blob = new Blob([total.buffer as ArrayBuffer], { type: mime });
           const url = URL.createObjectURL(blob);
           objectUrlRef.current = url;
           setImageSrc(url);
