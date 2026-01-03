@@ -111,6 +111,23 @@ function App() {
       objectUrlRef.current = null;
     }
   };
+
+  // 動画要素への参照（シーク制御用）
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const seekVideo = (deltaSeconds: number) => {
+    const v = videoRef.current;
+    if (!v) return;
+    try {
+      const dur = isFinite(v.duration) ? v.duration : 0;
+      let t = (v.currentTime || 0) + deltaSeconds;
+      if (t < 0) t = 0;
+      if (dur > 0 && t > dur) t = dur;
+      v.currentTime = t;
+    } catch (e) {
+      // ignore
+    }
+  };
+
   // 表示用ファイル名を短縮して返すユーティリティ
   const getBasename = (path: string) => {
     if (!path) return "";
@@ -272,10 +289,27 @@ function App() {
       return;
     }
 
-    if (event.key === "ArrowLeft" || event.key === "h" || event.key === "k") {
+    // ArrowLeft / ArrowRight は 15 秒シーク（動画再生時）、画像なら左右移動を維持
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      // 動画再生中でも、動画要素がフォーカスされていない場合は前の画像へ移動する
+      if (isVideo && videoRef.current && document.activeElement === videoRef.current) {
+        seekVideo(-15);
+      } else {
+        handlePrevImage();
+      }
+    } else if (event.key === "ArrowRight") {
+      event.preventDefault();
+      // 動画要素がフォーカスされていない場合は次の画像へ移動する
+      if (isVideo && videoRef.current && document.activeElement === videoRef.current) {
+        seekVideo(15);
+      } else {
+        handleNextImage();
+      }
+    } else if (event.key === "h" || event.key === "k") {
       event.preventDefault();
       handlePrevImage();
-    } else if (event.key === "ArrowRight" || event.key === "l" || event.key === "j") {
+    } else if (event.key === "l" || event.key === "j") {
       event.preventDefault();
       handleNextImage();
     } else if (event.key === "q" || event.key === "Escape") {
@@ -285,7 +319,7 @@ function App() {
       event.preventDefault();
       handleSelectDirectory();
     }
-  }, [state.status, handlePrevImage, handleNextImage]);
+  }, [state.status, handlePrevImage, handleNextImage, isVideo]);
 
   // コンポーネントアンマウント時にタイマーをクリアし、作成した Object URL を破棄
   useEffect(() => {
@@ -353,6 +387,7 @@ function App() {
             <div className="image-container">
               {isVideo ? (
                 <video
+                  ref={videoRef}
                   src={imageSrc}
                   className="displayed-image"
                   controls
