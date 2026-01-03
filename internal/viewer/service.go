@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -103,13 +104,27 @@ func (s *ImageViewerService) GetImageFiles(directoryPath string) ([]string, erro
 	return imagePaths, nil
 }
 
-// GetImageBase64 指定パスの画像をBase64エンコードして返す
+// GetImageBase64 指定パスの画像をBase64エンコードして返す。
+// 動画や大きなファイルは file:// URL を返すことでメモリ負荷を回避します。
 func (s *ImageViewerService) GetImageBase64(imagePath string) (string, error) {
+	fi, err := os.Stat(imagePath)
+	if err != nil {
+		return "", err
+	}
+
+	ext := strings.ToLower(filepath.Ext(imagePath))
+	// 動画（.mp4）や大きなファイル（ここでは 5MB を閾値）については
+	// base64 にせず file:// URL を返す（フロントエンドで直接参照する）
+	if ext == ".mp4" || fi.Size() > 5*1024*1024 {
+		u := &url.URL{Scheme: "file", Path: imagePath}
+		return u.String(), nil
+	}
+
 	data, err := os.ReadFile(imagePath)
 	if err != nil {
 		return "", err
 	}
-	ext := strings.ToLower(filepath.Ext(imagePath))
+
 	mime := "image/png"
 	switch ext {
 	case ".jpg", ".jpeg":
@@ -120,8 +135,6 @@ func (s *ImageViewerService) GetImageBase64(imagePath string) (string, error) {
 		mime = "image/gif"
 	case ".webp":
 		mime = "image/webp"
-	case ".mp4":
-		mime = "video/mp4"
 	}
 	base64Str := base64.StdEncoding.EncodeToString(data)
 	return "data:" + mime + ";base64," + base64Str, nil
