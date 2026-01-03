@@ -139,3 +139,12 @@ func (s *ImageViewerService) GetImageBase64(imagePath string) (string, error) {
 	base64Str := base64.StdEncoding.EncodeToString(data)
 	return "data:" + mime + ";base64," + base64Str, nil
 }
+
+// GetFileBytes は指定パスのファイルのバイト列を返します（フロントエンドで Blob を作成するために使用）
+func (s *ImageViewerService) GetFileBytes(imagePath string) ([]byte, error) {
+	data, err := os.ReadFile(imagePath)
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
+}

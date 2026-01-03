@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useCallback, useState } from 'react';
+import { useEffect, useReducer, useCallback, useState, useRef } from 'react';
 import './App.css';
 import { GetImageFiles, SelectDirectory, GetImageBase64 } from '../wailsjs/go/viewer/ImageViewerService';
 
@@ -103,6 +103,14 @@ function App() {
   // 数字入力バッファ（ページジャンプ用）
   const digitBufferRef = ({} as { current?: string });
   const digitTimerRef = ({} as { current?: number | null });
+  // 一時的に作成した Object URL を保持しておき、不要時に revoke する
+  const objectUrlRef = useRef<string | null>(null);
+  const revokeObjectUrl = () => {
+    if (objectUrlRef.current) {
+      try { URL.revokeObjectURL(objectUrlRef.current); } catch (e) { /* ignore */ }
+      objectUrlRef.current = null;
+    }
+  };
   // 表示用ファイル名を短縮して返すユーティリティ
   const getBasename = (path: string) => {
     if (!path) return "";
@@ -140,18 +148,60 @@ function App() {
 
   // 現在の画像のBase64データを取得
   const loadCurrentImage = useCallback(async () => {
+    // 既存の Object URL を破棄してから新規取得
+    revokeObjectUrl();
+
     if (state.status === "viewing" && state.imageFiles.length > 0) {
       const imagePath = state.imageFiles[state.currentImageIndex];
       try {
-        const base64 = await GetImageBase64(imagePath);
-        setImageSrc(base64);
+        const src = await GetImageBase64(imagePath);
+
+        // サーバーが file:// を返す場合はファイルをバイナリで取得して Blob 化する
+        if (typeof src === 'string' && src.startsWith('file://')) {
+          // Wails のブリッジ経由でバイト列を取得（戻り値は Uint8Array か base64 文字列のどちらかを想定）
+          const raw: any = await (window as any).go.viewer.ImageViewerService.GetFileBytes(imagePath);
+
+          let bytes: Uint8Array;
+          if (typeof raw === 'string') {
+            // base64 文字列だった場合に備えてデコード
+            const bin = atob(raw);
+            bytes = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+          } else if (raw instanceof Uint8Array) {
+            bytes = raw as Uint8Array;
+          } else if (raw && raw.length) {
+            bytes = new Uint8Array(raw);
+          } else {
+            throw new Error('不明なバイナリ形式');
+          }
+
+          // MIME 判定
+          const mime = isVideo ? 'video/mp4' : (() => {
+            const ext = (currentPath || '').split('.').pop()?.toLowerCase() || '';
+            switch (ext) {
+              case 'jpg': case 'jpeg': return 'image/jpeg';
+              case 'png': return 'image/png';
+              case 'gif': return 'image/gif';
+              case 'webp': return 'image/webp';
+              default: return 'application/octet-stream';
+            }
+          })();
+
+          const blob = new Blob([bytes.buffer as ArrayBuffer], { type: mime });
+          const url = URL.createObjectURL(blob);
+          objectUrlRef.current = url;
+          setImageSrc(url);
+        } else {
+          // data: URI や直接使える URL の場合はそのまま設定
+          setImageSrc(src);
+        }
       } catch (e) {
         setImageSrc("");
       }
     } else {
       setImageSrc("");
     }
-  }, [state.status, state.imageFiles, state.currentImageIndex]);
+  }, [state.status, state.imageFiles, state.currentImageIndex, isVideo, currentPath]);
 
   // 画像切り替え時にBase64データを取得
   useEffect(() => {
@@ -226,11 +276,16 @@ function App() {
     }
   }, [state.status, handlePrevImage, handleNextImage]);
 
-  // コンポーネントアンマウント時にタイマーをクリア
+  // コンポーネントアンマウント時にタイマーをクリアし、作成した Object URL を破棄
   useEffect(() => {
     return () => {
       if (digitTimerRef.current) {
         window.clearTimeout(digitTimerRef.current as number);
+      }
+      // 作成した URL を破棄
+      if (objectUrlRef.current) {
+        try { URL.revokeObjectURL(objectUrlRef.current); } catch (e) { /* ignore */ }
+        objectUrlRef.current = null;
       }
     };
   }, []);
