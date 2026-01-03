@@ -96,6 +96,10 @@ function reducer(state: AppState, action: Action): AppState {
 function App() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [imageSrc, setImageSrc] = useState<string>("");
+
+  const currentPath = state.imageFiles.length > 0 ? state.imageFiles[state.currentImageIndex] : "";
+  const isVideo = currentPath.toLowerCase().endsWith(".mp4");
+
   // 数字入力バッファ（ページジャンプ用）
   const digitBufferRef = ({} as { current?: string });
   const digitTimerRef = ({} as { current?: number | null });
@@ -281,11 +285,20 @@ function App() {
         {state.status === "viewing" && (
           <>
             <div className="image-container">
-              <img
-                src={imageSrc}
-                alt="選択された画像"
-                className="displayed-image"
-              />
+              {isVideo ? (
+                <video
+                  src={imageSrc}
+                  className="displayed-image"
+                  controls
+                  preload="metadata"
+                />
+              ) : (
+                <img
+                  src={imageSrc}
+                  alt="選択された画像"
+                  className="displayed-image"
+                />
+              )}
             </div>
             <div className="navigation-controls" style={{ height: '28px', display: 'flex', gap: '1rem', marginTop: '1rem' }}>
               <button
