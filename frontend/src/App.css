@@ -71,7 +71,9 @@ body {
   overflow: hidden;
 }
 
-.empty-state, .loading-state, .error-state {
+.empty-state,
+.loading-state,
+.error-state {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -103,12 +105,60 @@ body {
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  position: relative;
 }
 
 .displayed-image {
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
+}
+
+/* 強調されたフォーカス表示（クリックでもキーボードでも目立つよう :focus を含める） */
+.displayed-image:focus,
+.displayed-image:focus-visible {
+  outline: none;
+  border-radius: 8px;
+  box-shadow: 0 0 0 10px rgba(59, 130, 246, 0.85);
+  transform: translateZ(0) scale(1.02);
+  animation: focusPulse 1.6s infinite ease-in-out;
+}
+
+@keyframes focusPulse {
+  0% {
+    box-shadow: 0 0 0 6px rgba(59, 130, 246, 0.6);
+  }
+
+  50% {
+    box-shadow: 0 0 22px 12px rgba(59, 130, 246, 0.18);
+  }
+
+  100% {
+    box-shadow: 0 0 0 6px rgba(59, 130, 246, 0.6);
+  }
+}
+
+/* OSD を中央下に表示（フォーカス時にトーンアップ） */
+.video-osd {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translate(-50%, 8px);
+  background: rgba(17, 24, 39, 0.9);
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  opacity: 0;
+  transition: transform 160ms ease, opacity 160ms ease;
+  pointer-events: none;
+  box-shadow: 0 6px 18px rgba(2, 6, 23, 0.36);
+}
+
+/* video がフォーカスされたときに OSD を表示 */
+.displayed-image:focus+.video-osd {
+  opacity: 1;
+  transform: translate(-50%, 0);
 }
 
 .navigation-controls {

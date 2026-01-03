@@ -128,6 +128,16 @@ function App() {
     }
   };
 
+  const togglePlayPause = () => {
+    const v = videoRef.current;
+    if (!v) return;
+    if (v.paused) {
+      v.play().catch(() => { });
+    } else {
+      v.pause();
+    }
+  };
+  const [videoPlaying, setVideoPlaying] = useState(false);
   // 表示用ファイル名を短縮して返すユーティリティ
   const getBasename = (path: string) => {
     if (!path) return "";
@@ -306,6 +316,14 @@ function App() {
       } else {
         handleNextImage();
       }
+    } else if (event.key === ' ' || event.code === 'Space' || event.key === 'Spacebar') {
+      if (!isVideo) return;
+      event.preventDefault();
+      // 動画がフォーカスされていなくても Space で再生/一時停止をトグルし、動画にフォーカスを移す
+      if (videoRef.current) {
+        try { videoRef.current.focus(); } catch (e) { /* ignore */ }
+      }
+      togglePlayPause();
     } else if (event.key === "h" || event.key === "k") {
       event.preventDefault();
       handlePrevImage();
@@ -386,13 +404,19 @@ function App() {
           <>
             <div className="image-container">
               {isVideo ? (
-                <video
-                  ref={videoRef}
-                  src={imageSrc}
-                  className="displayed-image"
-                  controls
-                  preload="metadata"
-                />
+                <>
+                  <video
+                    ref={videoRef}
+                    src={imageSrc}
+                    className="displayed-image"
+                    controls
+                    preload="metadata"
+                    tabIndex={0}
+                    onPlay={() => setVideoPlaying(true)}
+                    onPause={() => setVideoPlaying(false)}
+                  />
+                  <div className="video-osd" aria-hidden>{videoPlaying ? '再生中 ▶' : '停止中 ⏸'}</div>
+                </>
               ) : (
                 <img
                   src={imageSrc}
