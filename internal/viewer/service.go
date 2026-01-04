@@ -22,6 +22,7 @@ var supportedExtensions = map[string]bool{
 	".gif":  true,
 	".webp": true,
 	".mp4":  true,
+	".pdf":  true,
 }
 
 // ImageViewerService バックエンドのサービス実装
@@ -136,6 +137,8 @@ func (s *ImageViewerService) GetImageBase64(imagePath string) (string, error) {
 		mime = "image/gif"
 	case ".webp":
 		mime = "image/webp"
+	case ".pdf":
+		mime = "application/pdf"
 	}
 	base64Str := base64.StdEncoding.EncodeToString(data)
 	return "data:" + mime + ";base64," + base64Str, nil

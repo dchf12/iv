@@ -99,6 +99,7 @@ function App() {
 
   const currentPath = state.imageFiles.length > 0 ? state.imageFiles[state.currentImageIndex] : "";
   const isVideo = currentPath.toLowerCase().endsWith(".mp4");
+  const isPdf = currentPath.toLowerCase().endsWith(".pdf");
 
   // 数字入力バッファ（ページジャンプ用）
   const digitBufferRef = ({} as { current?: string });
@@ -221,6 +222,7 @@ function App() {
               case 'png': return 'image/png';
               case 'gif': return 'image/gif';
               case 'webp': return 'image/webp';
+              case 'pdf': return 'application/pdf';
               default: return 'application/octet-stream';
             }
           })();
@@ -417,6 +419,12 @@ function App() {
                   />
                   <div className="video-osd" aria-hidden>{videoPlaying ? '再生中 ▶' : '停止中 ⏸'}</div>
                 </>
+              ) : isPdf ? (
+                <iframe
+                  src={imageSrc}
+                  title="PDF Viewer"
+                  className="displayed-image pdf-viewer"
+                />
               ) : (
                 <img
                   src={imageSrc}

@@ -114,6 +114,14 @@ body {
   object-fit: contain;
 }
 
+/* PDF 用の埋め込みビューア */
+.pdf-viewer {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: #fff;
+}
+
 /* 強調されたフォーカス表示（クリックでもキーボードでも目立つよう :focus を含める） */
 .displayed-image:focus,
 .displayed-image:focus-visible {
