@@ -19,8 +19,8 @@ type Action =
   | { type: "IMAGES_LOADED"; payload: string[] }
   | { type: "IMAGE_LOAD_FAILED"; payload: string }
   | { type: "JUMP"; payload: number }
-  | { type: "NEXT_IMAGE" }
-  | { type: "PREV_IMAGE" }
+  | { type: "NEXT_IMAGE"; payload?: number }
+  | { type: "PREV_IMAGE"; payload?: number }
   | { type: "CLEAR_ERROR" };
 
 // 初期状態
@@ -65,20 +65,23 @@ function reducer(state: AppState, action: Action): AppState {
         status: "error",
         errorMessage: action.payload,
       };
-    case "NEXT_IMAGE":
+    case "NEXT_IMAGE": {
+      if (state.imageFiles.length === 0) return state;
+      const step = action.payload ?? 1;
       return {
         ...state,
-        currentImageIndex: state.imageFiles.length === 0
-          ? 0
-          : (state.currentImageIndex + 1) % state.imageFiles.length,
+        currentImageIndex: (state.currentImageIndex + step) % state.imageFiles.length,
       };
-    case "PREV_IMAGE":
+    }
+    case "PREV_IMAGE": {
+      if (state.imageFiles.length === 0) return state;
+      const step = action.payload ?? 1;
+      const L = state.imageFiles.length;
       return {
         ...state,
-        currentImageIndex: state.imageFiles.length === 0
-          ? 0
-          : (state.currentImageIndex - 1 + state.imageFiles.length) % state.imageFiles.length,
+        currentImageIndex: ((state.currentImageIndex - step) % L + L) % L,
       };
+    }
     case "JUMP": {
       if (state.imageFiles.length === 0) return state;
       const L = state.imageFiles.length;
@@ -96,6 +99,9 @@ function reducer(state: AppState, action: Action): AppState {
 function App() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [imageSrc, setImageSrc] = useState<string>("");
+  const [isSpreadMode, setIsSpreadMode] = useState(false);
+  const [secondImageSrc, setSecondImageSrc] = useState<string>("");
+  const secondObjectUrlRef = useRef<string | null>(null);
 
   const currentPath = state.imageFiles.length > 0 ? state.imageFiles[state.currentImageIndex] : "";
   const isVideo = currentPath.toLowerCase().endsWith(".mp4");
@@ -106,12 +112,14 @@ function App() {
   const digitTimerRef = ({} as { current?: number | null });
   // 一時的に作成した Object URL を保持しておき、不要時に revoke する
   const objectUrlRef = useRef<string | null>(null);
-  const revokeObjectUrl = () => {
-    if (objectUrlRef.current) {
-      try { URL.revokeObjectURL(objectUrlRef.current); } catch (e) { /* ignore */ }
-      objectUrlRef.current = null;
+  const revokeRef = (ref: React.MutableRefObject<string | null>) => {
+    if (ref.current) {
+      try { URL.revokeObjectURL(ref.current); } catch (e) { /* ignore */ }
+      ref.current = null;
     }
   };
+  const revokeObjectUrl = () => revokeRef(objectUrlRef);
+  const revokeSecondObjectUrl = () => revokeRef(secondObjectUrlRef);
 
   // 動画要素への参照（シーク制御用）
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -174,74 +182,102 @@ function App() {
     }
   };
 
+  // 指定パスの画像を読み込み、src文字列を返すヘルパー
+  const loadImageSrc = async (
+    filePath: string,
+    urlRef: React.MutableRefObject<string | null>,
+  ): Promise<string> => {
+    const src = await GetImageBase64(filePath);
+
+    // サーバーが file:// を返す場合は、チャンクで読み込みつつ Blob を組み立てる
+    if (typeof src === 'string' && src.startsWith('file://')) {
+      const sizeRaw: any = await (window as any).go.viewer.ImageViewerService.GetFileSize(filePath);
+      const totalSize = typeof sizeRaw === 'number' ? sizeRaw : parseInt(String(sizeRaw), 10);
+      const chunkSize = 1024 * 1024; // 1MB
+
+      const total = new Uint8Array(totalSize);
+      let offset = 0;
+      while (offset < totalSize) {
+        const len = Math.min(chunkSize, totalSize - offset);
+        const chunkRaw: any = await (window as any).go.viewer.ImageViewerService.GetFileBytesRange(filePath, offset, len);
+
+        let chunkBytes: Uint8Array;
+        if (typeof chunkRaw === 'string') {
+          const bin = atob(chunkRaw);
+          chunkBytes = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) chunkBytes[i] = bin.charCodeAt(i);
+        } else if (chunkRaw instanceof Uint8Array) {
+          chunkBytes = chunkRaw as Uint8Array;
+        } else if (chunkRaw && chunkRaw.length) {
+          chunkBytes = new Uint8Array(chunkRaw);
+        } else {
+          throw new Error('不明なバイナリ形式');
+        }
+
+        total.set(chunkBytes, offset);
+        offset += chunkBytes.length;
+      }
+
+      const ext = filePath.split('.').pop()?.toLowerCase() || '';
+      const mimeMap: Record<string, string> = {
+        mp4: 'video/mp4', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+        png: 'image/png', gif: 'image/gif', webp: 'image/webp',
+        pdf: 'application/pdf',
+      };
+      const mime = mimeMap[ext] || 'application/octet-stream';
+
+      const blob = new Blob([total.buffer as ArrayBuffer], { type: mime });
+      const url = URL.createObjectURL(blob);
+      urlRef.current = url;
+      return url;
+    }
+
+    // data: URI や直接使える URL の場合はそのまま返す
+    return src;
+  };
+
   // 現在の画像のBase64データを取得
   const loadCurrentImage = useCallback(async () => {
-    // 既存の Object URL を破棄してから新規取得
     revokeObjectUrl();
+    revokeSecondObjectUrl();
 
     if (state.status === "viewing" && state.imageFiles.length > 0) {
       const imagePath = state.imageFiles[state.currentImageIndex];
       try {
-        const src = await GetImageBase64(imagePath);
-
-        // サーバーが file:// を返す場合は、チャンクで読み込みつつ Blob を組み立てる
-        if (typeof src === 'string' && src.startsWith('file://')) {
-          // ファイルサイズを問い合わせ
-          const sizeRaw: any = await (window as any).go.viewer.ImageViewerService.GetFileSize(imagePath);
-          const totalSize = typeof sizeRaw === 'number' ? sizeRaw : parseInt(String(sizeRaw), 10);
-          const chunkSize = 1024 * 1024; // 1MB
-
-          const total = new Uint8Array(totalSize);
-          let offset = 0;
-          while (offset < totalSize) {
-            const len = Math.min(chunkSize, totalSize - offset);
-            const chunkRaw: any = await (window as any).go.viewer.ImageViewerService.GetFileBytesRange(imagePath, offset, len);
-
-            let chunkBytes: Uint8Array;
-            if (typeof chunkRaw === 'string') {
-              const bin = atob(chunkRaw);
-              chunkBytes = new Uint8Array(bin.length);
-              for (let i = 0; i < bin.length; i++) chunkBytes[i] = bin.charCodeAt(i);
-            } else if (chunkRaw instanceof Uint8Array) {
-              chunkBytes = chunkRaw as Uint8Array;
-            } else if (chunkRaw && chunkRaw.length) {
-              chunkBytes = new Uint8Array(chunkRaw);
-            } else {
-              throw new Error('不明なバイナリ形式');
-            }
-
-            total.set(chunkBytes, offset);
-            offset += chunkBytes.length;
-          }
-
-          // MIME 判定
-          const mime = isVideo ? 'video/mp4' : (() => {
-            const ext = (currentPath || '').split('.').pop()?.toLowerCase() || '';
-            switch (ext) {
-              case 'jpg': case 'jpeg': return 'image/jpeg';
-              case 'png': return 'image/png';
-              case 'gif': return 'image/gif';
-              case 'webp': return 'image/webp';
-              case 'pdf': return 'application/pdf';
-              default: return 'application/octet-stream';
-            }
-          })();
-
-          const blob = new Blob([total.buffer as ArrayBuffer], { type: mime });
-          const url = URL.createObjectURL(blob);
-          objectUrlRef.current = url;
-          setImageSrc(url);
-        } else {
-          // data: URI や直接使える URL の場合はそのまま設定
-          setImageSrc(src);
-        }
+        const src = await loadImageSrc(imagePath, objectUrlRef);
+        setImageSrc(src);
       } catch (e) {
         setImageSrc("");
       }
+
+      // 見開きモード: 2枚目を読み込む（1枚目が画像の場合のみ）
+      if (isSpreadMode && !isVideo && !isPdf) {
+        const nextIdx = state.currentImageIndex + 1;
+        if (nextIdx < state.imageFiles.length) {
+          const nextPath = state.imageFiles[nextIdx];
+          const nextExt = nextPath.toLowerCase().split('.').pop() || '';
+          const isNextMediaOrPdf = nextExt === 'mp4' || nextExt === 'pdf';
+          if (!isNextMediaOrPdf) {
+            try {
+              const src2 = await loadImageSrc(nextPath, secondObjectUrlRef);
+              setSecondImageSrc(src2);
+            } catch (e) {
+              setSecondImageSrc("");
+            }
+          } else {
+            setSecondImageSrc("");
+          }
+        } else {
+          setSecondImageSrc("");
+        }
+      } else {
+        setSecondImageSrc("");
+      }
     } else {
       setImageSrc("");
+      setSecondImageSrc("");
     }
-  }, [state.status, state.imageFiles, state.currentImageIndex, isVideo, currentPath]);
+  }, [state.status, state.imageFiles, state.currentImageIndex, isVideo, isPdf, isSpreadMode]);
 
   // 画像切り替え時にBase64データを取得
   useEffect(() => {
@@ -251,16 +287,18 @@ function App() {
   // 前の画像に移動
   const handlePrevImage = useCallback(() => {
     if (state.status === "viewing") {
-      dispatch({ type: "PREV_IMAGE" });
+      const step = isSpreadMode ? 2 : 1;
+      dispatch({ type: "PREV_IMAGE", payload: step });
     }
-  }, [state.status]);
+  }, [state.status, isSpreadMode]);
 
   // 次の画像に移動
   const handleNextImage = useCallback(() => {
     if (state.status === "viewing") {
-      dispatch({ type: "NEXT_IMAGE" });
+      const step = isSpreadMode ? 2 : 1;
+      dispatch({ type: "NEXT_IMAGE", payload: step });
     }
-  }, [state.status]);
+  }, [state.status, isSpreadMode]);
 
   // キーボードイベントの処理
   const handleKeyPress = useCallback((event: KeyboardEvent) => {
@@ -335,6 +373,9 @@ function App() {
     } else if (event.key === "q" || event.key === "Escape") {
       event.preventDefault();
       dispatch({ type: "CANCEL_SELECTION" });
+    } else if (event.key === "d") {
+      event.preventDefault();
+      setIsSpreadMode(prev => !prev);
     } else if (event.key === "o") {
       event.preventDefault();
       handleSelectDirectory();
@@ -348,10 +389,8 @@ function App() {
         window.clearTimeout(digitTimerRef.current as number);
       }
       // 作成した URL を破棄
-      if (objectUrlRef.current) {
-        try { URL.revokeObjectURL(objectUrlRef.current); } catch (e) { /* ignore */ }
-        objectUrlRef.current = null;
-      }
+      revokeRef(objectUrlRef);
+      revokeRef(secondObjectUrlRef);
     };
   }, []);
 
@@ -375,6 +414,11 @@ function App() {
               : ''}
           </span>
         </div>
+        {state.status === 'viewing' && (
+          <span style={{ fontSize: '0.8rem', color: '#888', whiteSpace: 'nowrap' }}>
+            {isSpreadMode ? '[見開き]' : '[単頁]'}
+          </span>
+        )}
         <button onClick={handleSelectDirectory} className="select-button" type="button">
           フォルダ選択
         </button>
@@ -404,7 +448,7 @@ function App() {
 
         {state.status === "viewing" && (
           <>
-            <div className="image-container">
+            <div className={`image-container${isSpreadMode && !isVideo && !isPdf ? ' spread-mode' : ''}`}>
               {isVideo ? (
                 <>
                   <video
@@ -426,11 +470,20 @@ function App() {
                   className="displayed-image pdf-viewer"
                 />
               ) : (
-                <img
-                  src={imageSrc}
-                  alt="選択された画像"
-                  className="displayed-image"
-                />
+                <>
+                  <img
+                    src={imageSrc}
+                    alt="選択された画像"
+                    className="displayed-image"
+                  />
+                  {isSpreadMode && secondImageSrc && (
+                    <img
+                      src={secondImageSrc}
+                      alt="見開き2ページ目"
+                      className="displayed-image"
+                    />
+                  )}
+                </>
               )}
             </div>
             <div className="navigation-controls" style={{ height: '28px', display: 'flex', gap: '1rem', marginTop: '1rem' }}>
@@ -442,7 +495,9 @@ function App() {
                 ← 前へ
               </button>
               <span className="image-counter">
-                {state.currentImageIndex + 1} / {state.imageFiles.length}
+                {isSpreadMode && secondImageSrc
+                  ? `${state.currentImageIndex + 1}-${state.currentImageIndex + 2} / ${state.imageFiles.length}`
+                  : `${state.currentImageIndex + 1} / ${state.imageFiles.length}`}
               </span>
               <button
                 onClick={handleNextImage}

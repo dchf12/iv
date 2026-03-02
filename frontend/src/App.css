@@ -114,6 +114,18 @@ body {
   object-fit: contain;
 }
 
+/* 見開き2ページビュー（右→左の日本式ページ順） */
+.image-container.spread-mode {
+  flex-direction: row-reverse;
+  gap: 4px;
+}
+
+.spread-mode .displayed-image {
+  max-width: 50%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
 /* PDF 用の埋め込みビューア */
 .pdf-viewer {
   width: 100%;
