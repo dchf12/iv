@@ -100,12 +100,17 @@ function App() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [imageSrc, setImageSrc] = useState<string>("");
   const [isSpreadMode, setIsSpreadMode] = useState(false);
+  const [spreadOffset, setSpreadOffset] = useState(0); // 見開きペアリングのオフセット（0 or 1）
   const [secondImageSrc, setSecondImageSrc] = useState<string>("");
   const secondObjectUrlRef = useRef<string | null>(null);
 
   const currentPath = state.imageFiles.length > 0 ? state.imageFiles[state.currentImageIndex] : "";
   const isVideo = currentPath.toLowerCase().endsWith(".mp4");
   const isPdf = currentPath.toLowerCase().endsWith(".pdf");
+  // 見開きモードで2枚表示するかどうか（オフセットに基づく）
+  const isSpreadPair = isSpreadMode && !isVideo && !isPdf
+    && state.currentImageIndex >= spreadOffset
+    && (state.currentImageIndex - spreadOffset) % 2 === 0;
 
   // 数字入力バッファ（ページジャンプ用）
   const digitBufferRef = ({} as { current?: string });
@@ -250,8 +255,8 @@ function App() {
         setImageSrc("");
       }
 
-      // 見開きモード: 2枚目を読み込む（1枚目が画像の場合のみ）
-      if (isSpreadMode && !isVideo && !isPdf) {
+      // 見開きモード: ペアリング対象のときのみ2枚目を読み込む
+      if (isSpreadPair) {
         const nextIdx = state.currentImageIndex + 1;
         if (nextIdx < state.imageFiles.length) {
           const nextPath = state.imageFiles[nextIdx];
@@ -277,7 +282,7 @@ function App() {
       setImageSrc("");
       setSecondImageSrc("");
     }
-  }, [state.status, state.imageFiles, state.currentImageIndex, isVideo, isPdf, isSpreadMode]);
+  }, [state.status, state.imageFiles, state.currentImageIndex, isVideo, isPdf, isSpreadPair]);
 
   // 画像切り替え時にBase64データを取得
   useEffect(() => {
@@ -287,18 +292,18 @@ function App() {
   // 前の画像に移動
   const handlePrevImage = useCallback(() => {
     if (state.status === "viewing") {
-      const step = isSpreadMode ? 2 : 1;
+      const step = isSpreadPair ? 2 : 1;
       dispatch({ type: "PREV_IMAGE", payload: step });
     }
-  }, [state.status, isSpreadMode]);
+  }, [state.status, isSpreadPair]);
 
   // 次の画像に移動
   const handleNextImage = useCallback(() => {
     if (state.status === "viewing") {
-      const step = isSpreadMode ? 2 : 1;
+      const step = isSpreadPair ? 2 : 1;
       dispatch({ type: "NEXT_IMAGE", payload: step });
     }
-  }, [state.status, isSpreadMode]);
+  }, [state.status, isSpreadPair]);
 
   // キーボードイベントの処理
   const handleKeyPress = useCallback((event: KeyboardEvent) => {
@@ -376,6 +381,9 @@ function App() {
     } else if (event.key === "d") {
       event.preventDefault();
       setIsSpreadMode(prev => !prev);
+    } else if (event.key === "s") {
+      event.preventDefault();
+      setSpreadOffset(prev => prev === 0 ? 1 : 0);
     } else if (event.key === "o") {
       event.preventDefault();
       handleSelectDirectory();
@@ -416,7 +424,7 @@ function App() {
         </div>
         {state.status === 'viewing' && (
           <span style={{ fontSize: '0.8rem', color: '#888', whiteSpace: 'nowrap' }}>
-            {isSpreadMode ? '[見開き]' : '[単頁]'}
+            {isSpreadMode ? `[見開き${spreadOffset ? ' +1' : ''}]` : '[単頁]'}
           </span>
         )}
         <button onClick={handleSelectDirectory} className="select-button" type="button">
@@ -448,7 +456,7 @@ function App() {
 
         {state.status === "viewing" && (
           <>
-            <div className={`image-container${isSpreadMode && !isVideo && !isPdf ? ' spread-mode' : ''}`}>
+            <div className={`image-container${isSpreadPair ? ' spread-mode' : ''}`}>
               {isVideo ? (
                 <>
                   <video
@@ -476,7 +484,7 @@ function App() {
                     alt="選択された画像"
                     className="displayed-image"
                   />
-                  {isSpreadMode && secondImageSrc && (
+                  {isSpreadPair && secondImageSrc && (
                     <img
                       src={secondImageSrc}
                       alt="見開き2ページ目"
@@ -495,7 +503,7 @@ function App() {
                 ← 前へ
               </button>
               <span className="image-counter">
-                {isSpreadMode && secondImageSrc
+                {isSpreadPair && secondImageSrc
                   ? `${state.currentImageIndex + 1}-${state.currentImageIndex + 2} / ${state.imageFiles.length}`
                   : `${state.currentImageIndex + 1} / ${state.imageFiles.length}`}
               </span>
