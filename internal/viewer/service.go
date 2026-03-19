@@ -103,6 +103,8 @@ func (s *ImageViewerService) GetImageFiles(directoryPath string) ([]string, erro
 		return nil, errors.New("指定されたディレクトリに画像ファイルが見つかりません")
 	}
 
+	sortNatural(imagePaths)
+
 	return imagePaths, nil
 }
 
