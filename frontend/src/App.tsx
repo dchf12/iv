@@ -413,7 +413,7 @@ function App() {
   return (
     <div className="app-container">
       <header className="app-header" style={{ padding: '0.5rem 1rem', minHeight: 'unset', height: '48px', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-        <h1 style={{ fontSize: '1.2rem', margin: 0 }}>画像閲覧アプリ</h1>
+        <h1 style={{ fontSize: '1.2rem', margin: 0 }}></h1>
         {/* 現在表示中のファイル名を中央に表示（長ければ省略） */}
         <div style={{ flex: '0 0 auto', textAlign: 'center', maxWidth: '50%', overflow: 'hidden' }}>
           <span style={{ fontSize: '0.95rem', color: '#444' }}>
